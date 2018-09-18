@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd        http://camel.apache.org/schema/spring       http://camel.apache.org/schema/spring/camel-spring.xsd">
+	<bean
+		class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer"
+		id="bean-b8d75dc7-d155-492e-8cad-2c6d3940d003">
+		<property name="location">
+			<value>classpath:salesforceconfig.properties</value>
+		</property>
+	</bean>
+	<bean
+		class="org.apache.camel.component.salesforce.SalesforceComponent"
+		id="salesforce">
+		<property name="loginConfig">
+			<bean
+				class="org.apache.camel.component.salesforce.SalesforceLoginConfig">
+				<property name="loginUrl" value="${loginurl}" />
+				<property name="clientId" value="${clientId}" />
+				<property name="clientSecret" value="${clientSecret}" />
+				<property name="userName" value="${userName}" />
+				<property name="password" value="${password}" />
+			</bean>
+		</property>
+		<property name="config">
+			<bean
+				class="org.apache.camel.component.salesforce.SalesforceEndpointConfig">
+				<property name="sObjectName" value="${sObjectName}" />
+				<property name="sObjectClass" value="${sObjectClass}" />
+			</bean>
+		</property>
+		<property name="packages" value="${sObjectDTOPackages}" />
+	</bean>
+	<camelContext id="camel"
+		xmlns="http://camel.apache.org/schema/spring">
+		<!-- <restConfiguration component="jetty" bindingMode="json" contextPath="/camel-example" 
+			port="8181"> <dataFormatProperty key="prettyPrint" value="true" /> </restConfiguration> -->
+		<rest id="rest-a09d6c46-5440-45a2-8ea8-06c8582f8e73"
+			path="/opportunity">
+			<get id="get-902b605f-2e57-4c85-a6db-364b0c5432de">
+				<to uri="direct:getList" />
+			</get>
+		</rest>
+		<rest id="rest_getBasicInfo" path="/getBasicInfoOpportunity">
+			<get id="get_getBasicInfoOpportunity">
+				<to uri="direct:getBasicInfoOpportunity" />
+			</get>
+		</rest>
+		
+		<route id="route_getBasicInfoOpportunity">
+			<from id="_from_getBasicInfoOpportunity"
+				uri="direct:getBasicInfoOpportunity" />
+			<to id="_to_getBasicInfoOpportunity"
+				uri="salesforce:getBasicInfo?sObjectName=Opportunity" />
+			<log id="_log_getBasicInfoOpportunity"
+				message="Query results back from SalesForce ${body}" />
+			<marshal id="_marshal1_getBasicInfoOpportunity">
+				<json library="Jackson" />
+			</marshal>
+			<log id="_log_getBasicInfoOpportunity"
+				message="Log afer marshalling  ${body}" />
+		</route>
+		<route id="simple-route">
+			<from id="_from1" uri="direct:getList" />
+			<to id="_to1" uri="salesforce:getSObject?sObjectName=Opportunity" />
+			<log id="_log1"
+				message="Query results back from SalesForce ${body}" />
+			<marshal id="_marshal1">
+				<json library="Jackson" />
+			</marshal>
+			<log id="_log2" message="Log afer marshalling  ${body}" />
+		</route>
+		
+		<route id="salesforce-route">
+
+			<from uri="file:work/camel-salesforce/input" />
+
+			<log message="Receiving file ${file:name}" />
+			<log message="Sending file ${file:name} to Salesforce" />
+			
+
+			<!-- use JsonHelper to use org.codehaus.jackson to convert json String 
+				to Cheese__c -->
+			<bean
+				beanType="org.mycompany.JsonHelper"
+				method="readFile" />
+			<log message="Body ${body}" />
+			<!-- remember name for later -->
+			<!-- <setHeader headerName="Name">
+				<simple>${body.Name}</simple>
+			</setHeader>
+
+			<log message="Creating cheese with name ${body.name}..." /> -->
+			<to uri="salesforce:upsertSObject?sObjectIdName=Name" />
+
+			<choice>
+				<when>
+					<simple>${body} != null</simple>
+					<log
+						message="Created cheese ${headers.name} with result success=${body.success} and errors=${body.errors}" />
+				</when>
+				<otherwise>
+					<log message="Updated cheese ${headers.name}" />
+				</otherwise>
+			</choice>
+		</route>
+	</camelContext>
+</beans>
